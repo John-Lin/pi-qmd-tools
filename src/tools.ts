@@ -207,11 +207,15 @@ export function createQmdGetTool(store: QmdReadStore): AgentTool<typeof getSchem
 				throw new Error(msg);
 			}
 
-			const body =
-				(await store.getDocumentBody(found.filepath, {
-					fromLine,
-					maxLines: args.maxLines,
-				})) ?? "";
+			const body = await store.getDocumentBody(found.filepath, {
+				fromLine,
+				maxLines: args.maxLines,
+			});
+			if (body === null) {
+				throw new Error(
+					`Document body unavailable for ${found.displayPath} (${found.filepath}). The index has metadata but no body — likely a stale/partial index; try \`qmd update\`.`,
+				);
+			}
 			let text = body;
 			if (args.lineNumbers) {
 				text = addLineNumbers(text, fromLine ?? 1);

@@ -132,6 +132,30 @@ describe("get tool path parsing", () => {
 	});
 });
 
+describe("get tool missing body", () => {
+	it("throws when getDocumentBody returns null", async () => {
+		const store = {
+			...stubStore,
+			get: async (lookup: string) => ({
+				filepath: lookup,
+				displayPath: lookup,
+				title: "t",
+				context: null,
+				hash: "hash",
+				docid: "abc123",
+				collectionName: "c",
+				modifiedAt: "",
+				bodyLength: 0,
+			}),
+			getDocumentBody: async () => null,
+		};
+		const tool = createQmdGetTool(store as any);
+		await expect(tool.execute("call-1", { file: "docs/a.md" })).rejects.toThrow(
+			/body/i,
+		);
+	});
+});
+
 // ── Integration tests ────────────────────────────────────────────────────
 // Skipped unless QMD_TEST_DB points at a real index. To run:
 //   QMD_TEST_DB=/Users/you/.cache/qmd/index.sqlite bun test
