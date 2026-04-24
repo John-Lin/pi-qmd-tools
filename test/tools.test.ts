@@ -31,6 +31,21 @@ describe("tool shapes", () => {
 		expect(tools.map((t) => t.name)).toEqual(["qmd_query", "qmd_get", "qmd_multi_get"]);
 	});
 
+	it("every tool requires a `label` parameter (pi-bot-tools convention)", () => {
+		for (const tool of createQmdTools(stubStore)) {
+			const schema: any = tool.parameters;
+			expect(schema.properties.label?.type).toBe("string");
+			expect(schema.required).toContain("label");
+		}
+	});
+
+	it("pinned query tool also requires `label`", () => {
+		const tool = createQmdQueryTool(stubStore, { collection: "hn" });
+		const schema: any = tool.parameters;
+		expect(schema.properties.label?.type).toBe("string");
+		expect(schema.required).toContain("label");
+	});
+
 	it("query tool validates searches bounds (1..10)", () => {
 		const tool = createQmdQueryTool(stubStore);
 		const schema: any = tool.parameters;
@@ -89,6 +104,41 @@ describe("pinned collection", () => {
 		expect(received.collections).toEqual(["notes"]);
 	});
 
+	it("passes a default minScore when caller sets one and args omit it", async () => {
+		let received: any;
+		const store = {
+			...stubStore,
+			search: async (opts: any) => {
+				received = opts;
+				return [];
+			},
+		};
+		const tool = createQmdQueryTool(store as any, { minScore: 0.5 });
+		await tool.execute("call-1", {
+			label: "test",
+			searches: [{ type: "lex", query: "foo" }],
+		});
+		expect(received.minScore).toBe(0.5);
+	});
+
+	it("lets args.minScore override the caller default", async () => {
+		let received: any;
+		const store = {
+			...stubStore,
+			search: async (opts: any) => {
+				received = opts;
+				return [];
+			},
+		};
+		const tool = createQmdQueryTool(store as any, { minScore: 0.5 });
+		await tool.execute("call-1", {
+			label: "test",
+			searches: [{ type: "lex", query: "foo" }],
+			minScore: 0,
+		});
+		expect(received.minScore).toBe(0);
+	});
+
 	it("pins the collection via createQmdTools options", async () => {
 		let received: any;
 		const store = {
@@ -127,7 +177,7 @@ describe("get tool path parsing", () => {
 			},
 		};
 		const tool = createQmdGetTool(store as any);
-		await tool.execute("call-1", { file: "docs/a.md:42" });
+		await tool.execute("call-1", { label: "test", file: "docs/a.md:42" });
 		expect(receivedFromLine).toBe(42);
 	});
 });
@@ -150,7 +200,7 @@ describe("get tool missing body", () => {
 			getDocumentBody: async () => null,
 		};
 		const tool = createQmdGetTool(store as any);
-		await expect(tool.execute("call-1", { file: "docs/a.md" })).rejects.toThrow(
+		await expect(tool.execute("call-1", { label: "test", file: "docs/a.md" })).rejects.toThrow(
 			/body/i,
 		);
 	});

@@ -21,6 +21,9 @@ const subSearchSchema = Type.Object({
 });
 
 const queryBaseFields = {
+	label: Type.String({
+		description: "Brief description of what you're searching for (shown to user)",
+	}),
 	searches: Type.Array(subSearchSchema, {
 		minItems: 1,
 		maxItems: 10,
@@ -61,6 +64,14 @@ const querySchemaPinned = Type.Object(queryBaseFields);
 export interface CreateQmdQueryToolOptions {
 	/** If set, the tool is pinned to this single collection — the `collections` field is removed from the agent-facing schema and every search is forced to this collection. */
 	collection?: string;
+	/**
+	 * Default minimum score floor (0-1). Applied when the agent doesn't pass
+	 * `minScore` explicitly; the agent can still override by passing its own
+	 * `minScore` (including 0 to disable). See the qmd score distribution —
+	 * results are bimodal around ~0.9 and ~0.55, so a floor of 0.5 is a good
+	 * "precision" default.
+	 */
+	minScore?: number;
 }
 
 const queryDescription = `Search the qmd knowledge base over markdown collections on the host.
@@ -84,6 +95,7 @@ export function createQmdQueryTool(
 	options?: CreateQmdQueryToolOptions,
 ): AgentTool<any> {
 	const pinned = options?.collection;
+	const defaultMinScore = options?.minScore;
 	const parameters = pinned ? querySchemaPinned : querySchema;
 	return {
 		name: "qmd_query",
@@ -104,7 +116,7 @@ export function createQmdQueryTool(
 				queries,
 				collections,
 				limit: args.limit,
-				minScore: args.minScore,
+				minScore: args.minScore ?? defaultMinScore,
 				rerank: args.rerank,
 				intent: args.intent,
 			});
@@ -168,6 +180,9 @@ export function createQmdQueryTool(
 // ─── qmd_get ──────────────────────────────────────────────────────────────
 
 const getSchema = Type.Object({
+	label: Type.String({
+		description: "Brief description of what you're fetching (shown to user)",
+	}),
 	file: Type.String({
 		description:
 			"File path (e.g. 'pages/meeting.md') or docid (e.g. '#abc123') from a qmd_query result. Append ':N' to start at line N (e.g. 'pages/meeting.md:100').",
@@ -240,6 +255,9 @@ export function createQmdGetTool(store: QmdReadStore): AgentTool<typeof getSchem
 // ─── qmd_multi_get ────────────────────────────────────────────────────────
 
 const multiGetSchema = Type.Object({
+	label: Type.String({
+		description: "Brief description of what you're fetching (shown to user)",
+	}),
 	pattern: Type.String({
 		description:
 			"Glob pattern (e.g. 'journals/2025-05*.md') or comma-separated list of paths/docids.",
@@ -326,6 +344,8 @@ export function createQmdMultiGetTool(store: QmdReadStore): AgentTool<typeof mul
 export interface CreateQmdToolsOptions {
 	/** Pin qmd_query to a single collection. See CreateQmdQueryToolOptions. */
 	collection?: string;
+	/** Default minimum score floor for qmd_query. See CreateQmdQueryToolOptions. */
+	minScore?: number;
 }
 
 export function createQmdTools(
@@ -333,7 +353,10 @@ export function createQmdTools(
 	options?: CreateQmdToolsOptions,
 ): AgentTool<any>[] {
 	return [
-		createQmdQueryTool(store, { collection: options?.collection }),
+		createQmdQueryTool(store, {
+			collection: options?.collection,
+			minScore: options?.minScore,
+		}),
 		createQmdGetTool(store),
 		createQmdMultiGetTool(store),
 	];
