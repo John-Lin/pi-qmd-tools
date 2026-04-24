@@ -1,0 +1,26 @@
+{
+  "name": "pi-qmd-tools",
+  "version": "0.1.0",
+  "description": "qmd search tools (query/get/multi-get) as pi-agent AgentTools. Runs the qmd SDK in-process so the host's GPU and SQLite are used directly.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7.0"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-agent-core": "^0.69.0",
+    "@mariozechner/pi-ai": "^0.69.0"
+  },
+  "dependencies": {
+    "@tobilu/qmd": "^2.1.0",
+    "typebox": "^1.1.24"
+  }
+}
