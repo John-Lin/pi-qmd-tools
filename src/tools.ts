@@ -1,10 +1,5 @@
 import type { AgentTool } from "@mariozechner/pi-agent-core";
-import {
-	addLineNumbers,
-	DEFAULT_MULTI_GET_MAX_BYTES,
-	extractSnippet,
-	type ExpandedQuery,
-} from "@tobilu/qmd";
+import { addLineNumbers, DEFAULT_MULTI_GET_MAX_BYTES, extractSnippet } from "@tobilu/qmd";
 import { Type } from "typebox";
 import type { QmdReadStore } from "./store.ts";
 
@@ -12,23 +7,13 @@ const SNIPPET_CHARS = 300;
 
 // ─── qmd_query ────────────────────────────────────────────────────────────
 
-const subSearchSchema = Type.Object({
-	type: Type.Union([Type.Literal("lex"), Type.Literal("vec"), Type.Literal("hyde")], {
-		description:
-			"lex = BM25 keywords (supports \"phrase\" and -negation); vec = natural-language semantic search; hyde = 50–100 word hypothetical answer",
-	}),
-	query: Type.String({ description: "The query text for this sub-search" }),
-});
-
 const queryBaseFields = {
 	label: Type.String({
 		description: "Brief description of what you're searching for (shown to user)",
 	}),
-	searches: Type.Array(subSearchSchema, {
-		minItems: 1,
-		maxItems: 10,
+	query: Type.String({
 		description:
-			"Typed sub-queries to combine. First entry gets 2× weight — lead with your strongest signal. For unknown vocabulary, a single vec or hyde sub-query is usually best.",
+			"Natural-language query string. qmd auto-expands it via a dedicated expansion model (lex + vec + hyde sub-queries) before searching. Just write the question or topic in the user's language; do not pre-decompose it.",
 	}),
 	limit: Type.Optional(
 		Type.Number({ description: "Max results (default 10)" }),
@@ -76,17 +61,7 @@ export interface CreateQmdQueryToolOptions {
 
 const queryDescription = `Search the qmd knowledge base over markdown collections on the host.
 
-Combine typed sub-queries for best recall:
-- **lex** — BM25 keyword ("quoted phrase" + -negation). Fast, exact.
-- **vec** — natural-language semantic search. Use a real question.
-- **hyde** — 50–100 words of hypothetical answer. Strongest for nuanced topics.
-
-Strategy:
-- Know the exact term → \`lex\` only
-- Concept search → \`vec\` only
-- Best recall → \`lex\` + \`vec\`
-- Complex / nuanced → \`lex\` + \`vec\` + \`hyde\`
-- Unknown vocabulary → a single vec sub-query (auto-expansion kicks in on a bare vec)
+Pass a natural-language \`query\` string in the user's language. qmd auto-expands it (BM25 + vector + hypothetical-answer sub-queries combined and reranked) — do not split or translate the query yourself.
 
 Returns docid, displayPath, title, score, and a snippet. **Use the returned docid (e.g. \`#abc123\`) with qmd_get to fetch the full body — do NOT pass the path to an unrelated read tool, the path is on the host and unrelated tools may not see it.**`;
 
@@ -103,17 +78,13 @@ export function createQmdQueryTool(
 		description: queryDescription,
 		parameters,
 		execute: async (_toolCallId, args: any) => {
-			const queries: ExpandedQuery[] = args.searches.map((s: any) => ({
-				type: s.type,
-				query: s.query,
-			}));
 			const collections = pinned
 				? [pinned]
 				: args.collections && args.collections.length > 0
 					? args.collections
 					: undefined;
 			const results = await store.search({
-				queries,
+				query: args.query,
 				collections,
 				limit: args.limit,
 				minScore: args.minScore ?? defaultMinScore,
@@ -121,11 +92,7 @@ export function createQmdQueryTool(
 				intent: args.intent,
 			});
 
-			const primaryQuery =
-				args.searches.find((s: any) => s.type === "lex")?.query ??
-				args.searches.find((s: any) => s.type === "vec")?.query ??
-				args.searches[0]?.query ??
-				"";
+			const primaryQuery = args.query;
 
 			if (results.length === 0) {
 				return {

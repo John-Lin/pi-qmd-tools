@@ -46,11 +46,27 @@ describe("tool shapes", () => {
 		expect(schema.required).toContain("label");
 	});
 
-	it("query tool validates searches bounds (1..10)", () => {
+	it("query tool requires `query` and does not expose manual `searches`", () => {
 		const tool = createQmdQueryTool(stubStore);
 		const schema: any = tool.parameters;
-		expect(schema.properties.searches.minItems).toBe(1);
-		expect(schema.properties.searches.maxItems).toBe(10);
+		expect(schema.properties.query?.type).toBe("string");
+		expect(schema.required).toContain("query");
+		expect(schema.properties.searches).toBeUndefined();
+	});
+
+	it("execute passes `query` (auto-expansion) to store.search, not `queries`", async () => {
+		let received: any;
+		const store = {
+			...stubStore,
+			search: async (opts: any) => {
+				received = opts;
+				return [];
+			},
+		};
+		const tool = createQmdQueryTool(store as any);
+		await tool.execute("call-1", { label: "test", query: "OpenAI GPT-5.5" });
+		expect(received.query).toBe("OpenAI GPT-5.5");
+		expect(received.queries).toBeUndefined();
 	});
 
 	it("get tool requires file parameter", () => {
@@ -70,7 +86,7 @@ describe("query behavior with empty results", () => {
 	it("returns a no-results message", async () => {
 		const tool = createQmdQueryTool(stubStore);
 		const result = await tool.execute("call-1", {
-			searches: [{ type: "lex", query: "zzz_nothing" }],
+			label: "test", query: "zzz_nothing",
 		});
 		expect(result.content[0]?.type).toBe("text");
 		expect((result.content[0] as any).text).toContain("No results");
@@ -100,7 +116,7 @@ describe("pinned collection", () => {
 			},
 		};
 		const tool = createQmdQueryTool(store as any, { collection: "notes" });
-		await tool.execute("call-1", { searches: [{ type: "lex", query: "foo" }] });
+		await tool.execute("call-1", { label: "test", query: "foo" });
 		expect(received.collections).toEqual(["notes"]);
 	});
 
@@ -114,10 +130,7 @@ describe("pinned collection", () => {
 			},
 		};
 		const tool = createQmdQueryTool(store as any, { minScore: 0.5 });
-		await tool.execute("call-1", {
-			label: "test",
-			searches: [{ type: "lex", query: "foo" }],
-		});
+		await tool.execute("call-1", { label: "test", query: "foo" });
 		expect(received.minScore).toBe(0.5);
 	});
 
@@ -133,7 +146,7 @@ describe("pinned collection", () => {
 		const tool = createQmdQueryTool(store as any, { minScore: 0.5 });
 		await tool.execute("call-1", {
 			label: "test",
-			searches: [{ type: "lex", query: "foo" }],
+			query: "foo",
 			minScore: 0,
 		});
 		expect(received.minScore).toBe(0);
@@ -214,12 +227,13 @@ const dbPath = process.env.QMD_TEST_DB;
 const integration = dbPath ? describe : describe.skip;
 
 integration("integration (real qmd index)", () => {
-	it("opens a store and runs a lex query", async () => {
+	it("opens a store and runs an auto-expanded query", async () => {
 		const store = await createQmdStore({ dbPath: dbPath! });
 		try {
 			const tool = createQmdQueryTool(store);
 			const result = await tool.execute("call-1", {
-				searches: [{ type: "lex", query: "the" }],
+				label: "test",
+				query: "the",
 				limit: 1,
 				rerank: false,
 			});
