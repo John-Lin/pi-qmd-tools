@@ -29,8 +29,8 @@
     "typescript": "^5.7.0"
   },
   "peerDependencies": {
-    "@mariozechner/pi-agent-core": ">=0.69.0 <0.71.0",
-    "@mariozechner/pi-ai": ">=0.69.0 <0.71.0"
+    "@mariozechner/pi-agent-core": "^0.70.2",
+    "@mariozechner/pi-ai": "^0.70.2"
   },
   "dependencies": {
     "@tobilu/qmd": "^2.1.0",
